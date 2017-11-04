@@ -259,3 +259,9 @@ paket-files/
 # Python Tools for Visual Studio (PTVS)
 __pycache__/
 *.pyc
+/Denoising/env
+/Denoising/my_graph
+/Denoising/src/python/my_graph
+/Denoising/module3.py
+/Denoising/module2.py
+/Denoising/module1.py
