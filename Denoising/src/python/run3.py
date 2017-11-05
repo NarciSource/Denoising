@@ -10,24 +10,14 @@ def differencing(n):
     return matrix
 
 
-def chk(data):
+def is_image(data):
     return isinstance(data[0],list)
 
 
-def denoising_algorithm(signal,reg_par,option):
+def denoising_algorithm(signal, reg_par, option):
     graph = tf.Graph()
-
-    size_n = len(signal)
-    if chk(signal):
-        size_m = len(signal[0])
-    
         
     with graph.as_default():
-        # A matrix that computes the gradient of neighbor data({x}_{i} - {x}_{i-1})
-        dh = tf.constant(differencing(size_n), name="hori_diff")
-        if chk(signal):
-            dv = tf.constant(differencing(size_m), name="vert_diff")
-
         # f is input_signal
         f = tf.placeholder(tf.float32, shape=None, name="signal")
     
@@ -43,9 +33,20 @@ def denoising_algorithm(signal,reg_par,option):
             data_fidelity = tf.reduce_mean(tf.square(f - u))
 
         with tf.name_scope("Regularization"):
+            size_n = len(signal)
+
+            # A matrix that computes the gradient of neighbor data({x}_{i} - {x}_{i-1})
+            dh = tf.constant(differencing(size_n), name="hori_diff")
+
             # Drag the entire gradient to zero.
             regularization = tf.reduce_mean(tf.square(tf.matmul(tf.transpose(u), dh)))
-            if chk(signal):
+
+
+            if is_image(signal):
+                size_m = len(signal[0])
+
+                dv = tf.constant(differencing(size_m), name="vert_diff")
+
                 regularization += tf.reduce_mean(tf.square(tf.matmul(u, dv)))
 
         
@@ -65,6 +66,7 @@ def denoising_algorithm(signal,reg_par,option):
         sess.run(init)
 
         input_dict = {f: signal, l: reg_par}
+
         for step in range(option['repeat_num']):
             print("loss= ", sess.run(energy, feed_dict=input_dict))
 
@@ -84,58 +86,16 @@ def denoising_algorithm(signal,reg_par,option):
 import matplotlib.pyplot as plt
 
 
-##------------------------------------------------------------------##
-
-from PIL import Image
-class Pic():
-    def inputs(self, image_name):
-        self.pre_img = Image.open(image_name).convert('L')
-
-    def noise(self, noise_variance):
-        self.pre_img = Image.eval(self.pre_img,
-                              lambda x : x + np.random.normal(0.0, noise_variance))
-
-    def denoising(self, reg_par):
-        option = {'learning_rate': 10.0,
-                  'repeat_num': 100}
-
-        self.answer = denoising_algorithm(signal = self.pre_pix(), reg_par=reg_par, option=option)
-        #self.post_img = Image.fromarray(self.answer)
-
-    def pre_pix(self):
-        return np.array(self.pre_img, np.float32)
-
-    def post_pix(self):
-        return self.answer
-
-##------------------------------------------------------------------##
-
-pic = Pic()
-
-plt.figure(1)
-pic.inputs('boat.png')
-plt.subplot(131)
-plt.imshow(pic.pre_pix(),cmap='gray')
-
-pic.noise(noise_variance=2.0)
-plt.subplot(132)
-plt.imshow(pic.pre_pix(),cmap='gray')
-
-pic.denoising(reg_par=10.0)
-plt.subplot(133)
-plt.imshow(pic.post_pix(),cmap='gray')
-
-
-##------------------------------------------------------------------##
+##Signal------------------------------------------------------------##
 
 class Signal():
-    def function(self,x):
-        y = 2*np.cos(x) + 4*np.cos(x/2)
-        return y
-
     def inputs(self):
         self.x = np.linspace(0,40,200)
         self.pre_y = [[self.function(each)] for each in self.x] 
+
+    def function(self,x):
+        y = 2*np.cos(x) + 4*np.cos(x/2)
+        return y
 
     def noise(self, noise_variance):
         self.pre_y = [[self.function(each) + np.random.normal(0.0, noise_variance)] for each in self.x] 
@@ -159,7 +119,7 @@ def plot_setting(title):
 
 signal = Signal()
 
-plt.figure(2)
+plt.figure(1)
 
 plt.subplot(211)
 # plot original signal
@@ -184,5 +144,49 @@ plt.plot(signal.x, signal.post_y, label="reg_par=100.0")
 signal.denoising(reg_par=1000.0)
 plt.plot(signal.x, signal.post_y, label="reg_par=1000.0")
 plot_setting(title="denoising process") 
+
+
+
+
+##Image-------------------------------------------------------------##
+
+from PIL import Image
+class Pic():
+    def inputs(self, image_name):
+        self.pre_img = Image.open(image_name).convert('L')
+
+    def noise(self, noise_variance):
+        self.pre_img = Image.eval(self.pre_img,
+                              lambda x : x + np.random.normal(0.0, noise_variance))
+
+    def denoising(self, reg_par):
+        option = {'learning_rate': 10.0,
+                  'repeat_num': 100}
+
+        self.answer = denoising_algorithm(signal = self.pre_pix(), reg_par=reg_par, option=option)
+        #self.post_img = Image.fromarray(self.answer)
+
+    def pre_pix(self):
+        return np.array(self.pre_img, np.float32)
+
+    def post_pix(self):
+        return self.answer
+
+##------------------------------------------------------------------##
+pic = Pic()
+
+plt.figure(2)
+pic.inputs('boat.png')
+plt.subplot(131)
+plt.imshow(pic.pre_pix(),cmap='gray')
+
+pic.noise(noise_variance=2.0)
+plt.subplot(132)
+plt.imshow(pic.pre_pix(),cmap='gray')
+
+pic.denoising(reg_par=10.0)
+plt.subplot(133)
+plt.imshow(pic.post_pix(),cmap='gray')
+
 
 plt.show()
