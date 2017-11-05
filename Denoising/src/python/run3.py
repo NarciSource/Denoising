@@ -1,54 +1,61 @@
 import numpy as np
 import tensorflow as tf
 
-def differencing(n):
-    matrix = [[0]*(n-1) for each in range(n)]
+def diff_matrix(n):
+    d = np.zeros([n-1,n], np.float32)
+
     for i in range(n-1):
-        matrix[i][i] = 1.0
-        matrix[i+1][i] = -1.0
+        d[i,i] = 1.0
+        d[i,i+1] = -1.0
 
-    return matrix
+    return d
 
+def hori_diff_matrix(n,m):
+    # image is n*n blocks, block is m*m pixel
+    dh = np.zeros([(n-1)*m, n*m], np.float32)
 
-def is_image(data):
-    return isinstance(data[0],list)
+    for i in range(n-1):
+        dh[i*m:(i+1)*m, i*m:(i+1)*m] = np.identity(m)
+        dh[i*m:(i+1)*m, (i+1)*m:(i+2)*m] = -1*(np.identity(m))
 
+    return dh
 
-def denoising_algorithm(signal, reg_par, option):
+def vert_diff_matrix(n,m):
+
+    dv = np.zeros([n*(m-1), n*m], np.float32)
+
+    for i in range(n):
+        dv[i*(m-1):(i+1)*(m-1), i*m:(i+1)*m] = diff_matrix(m)
+
+    return dv
+
+def denoising_algorithm(data, reg_par, option, blocks_num=1):
     graph = tf.Graph()
+    block_size = int(len(data) / blocks_num)
         
     with graph.as_default():
         # f is input_signal
-        f = tf.placeholder(tf.float32, shape=None, name="signal")
+        f = tf.placeholder(tf.float32, shape=None, name="data")
     
         # u is desired reconstruction
-        u = tf.Variable(signal, name = "desired_signal")
+        u = tf.Variable(data, name = "desired_data")
 
         # l is regularization parameter
         l = tf.placeholder(tf.float32, shape=None, name="parameter")
         
 
         with tf.name_scope("Data_fidelity"):
-            # Input data data fidelity 
+            # Fidelity to input data.
             data_fidelity = tf.reduce_mean(tf.square(f - u))
 
         with tf.name_scope("Regularization"):
-            size_n = len(signal)
-
             # A matrix that computes the gradient of neighbor data({x}_{i} - {x}_{i-1})
-            dh = tf.constant(differencing(size_n), name="hori_diff")
+            dh = tf.constant(hori_diff_matrix(blocks_num, block_size), name="hori_diff")
+            dv = tf.constant(vert_diff_matrix(blocks_num, block_size), name="vert_diff")
 
-            # Drag the entire gradient to zero.
-            regularization = tf.reduce_mean(tf.square(tf.matmul(tf.transpose(u), dh)))
-
-
-            if is_image(signal):
-                size_m = len(signal[0])
-
-                dv = tf.constant(differencing(size_m), name="vert_diff")
-
-                regularization += tf.reduce_mean(tf.square(tf.matmul(u, dv)))
-
+            # All values are set flat.
+            regularization = tf.reduce_mean(tf.square(tf.matmul(dh, u))) \
+                            + tf.reduce_mean(tf.square(tf.matmul(dv, u)))
         
         with tf.name_scope("Energy"):
             # Evaluation model        
@@ -65,11 +72,9 @@ def denoising_algorithm(signal, reg_par, option):
         sess = tf.Session()
         sess.run(init)
 
-        input_dict = {f: signal, l: reg_par}
+        input_dict = {f: data, l: reg_par}
 
         for step in range(option['repeat_num']):
-            print("loss= ", sess.run(energy, feed_dict=input_dict))
-
             sess.run(train, feed_dict=input_dict)
 
         # using Tensorboard    
@@ -91,7 +96,8 @@ import matplotlib.pyplot as plt
 class Signal():
     def inputs(self):
         self.x = np.linspace(0,40,200)
-        self.pre_y = [[self.function(each)] for each in self.x] 
+        f=np.vectorize(self.function)
+        self.pre_y = f(self.x)
 
     def function(self,x):
         y = 2*np.cos(x) + 4*np.cos(x/2)
@@ -104,7 +110,7 @@ class Signal():
         option = {'learning_rate': 0.02,
                   'repeat_num': 100}
 
-        answer = denoising_algorithm(signal = self.pre_y, reg_par=reg_par, option=option)
+        answer = denoising_algorithm(data = self.pre_y, reg_par=reg_par, option=option, blocks_num = 2)
         self.post_y = answer
 
 
@@ -159,11 +165,11 @@ class Pic():
         self.pre_img = Image.eval(self.pre_img,
                               lambda x : x + np.random.normal(0.0, noise_variance))
 
-    def denoising(self, reg_par):
+    def deblurred(self, reg_par):
         option = {'learning_rate': 10.0,
                   'repeat_num': 100}
 
-        self.answer = denoising_algorithm(signal = self.pre_pix(), reg_par=reg_par, option=option)
+        self.answer = denoising_algorithm(data = self.pre_pix(), reg_par=reg_par, option=option, blocks_num = 2)
         #self.post_img = Image.fromarray(self.answer)
 
     def pre_pix(self):
@@ -176,17 +182,22 @@ class Pic():
 pic = Pic()
 
 plt.figure(2)
-pic.inputs('boat.png')
-plt.subplot(131)
-plt.imshow(pic.pre_pix(),cmap='gray')
+pic.inputs('blurred_lena.png')
 
-pic.noise(noise_variance=2.0)
-plt.subplot(132)
-plt.imshow(pic.pre_pix(),cmap='gray')
+plt.subplot(221)
+plt.imshow(pic.pre_pix(),cmap='gray',label='blurred image')
 
-pic.denoising(reg_par=10.0)
-plt.subplot(133)
-plt.imshow(pic.post_pix(),cmap='gray')
+pic.deblurred(reg_par=0.001)
+plt.subplot(222)
+plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=0.001')
+
+pic.deblurred(reg_par=10)
+plt.subplot(223)
+plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=0.01')
+
+pic.deblurred(reg_par=50)
+plt.subplot(224)
+plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=10')
 
 
 plt.show()
