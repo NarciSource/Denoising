@@ -182,7 +182,7 @@ class Pic():
 pic = Pic()
 
 plt.figure(2)
-pic.inputs('boat.png')
+pic.inputs('./img/boat.png')
 pic.noise(20.0)
 
 plt.subplot(221)
