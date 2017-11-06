@@ -78,7 +78,7 @@ def denoising_algorithm(data, reg_par, option, blocks_num=1):
             sess.run(train, feed_dict=input_dict)
 
         # using Tensorboard    
-        writer = tf.summary.FileWriter('./my_graph',graph=sess.graph)
+        writer = tf.summary.FileWriter('./log/my_graph',graph=sess.graph)
 
         answer = sess.run(u, feed_dict=input_dict)
 
@@ -107,10 +107,10 @@ class Signal():
         self.pre_y = [[self.function(each) + np.random.normal(0.0, noise_variance)] for each in self.x] 
 
     def denoising(self, reg_par):
-        option = {'learning_rate': 0.02,
+        option = {'learning_rate': 0.04,
                   'repeat_num': 100}
 
-        answer = denoising_algorithm(data = self.pre_y, reg_par=reg_par, option=option, blocks_num = 2)
+        answer = denoising_algorithm(data = self.pre_y, reg_par=reg_par, option=option, blocks_num = 1)
         self.post_y = answer
 
 
@@ -121,6 +121,7 @@ def plot_setting(title):
     plt.ylabel('signal')
     plt.legend()
     plt.grid()
+    plt.ylim([-6,10])
 
 
 signal = Signal()
@@ -166,11 +167,10 @@ class Pic():
                               lambda x : x + np.random.normal(0.0, noise_variance))
 
     def deblurred(self, reg_par):
-        option = {'learning_rate': 10.0,
+        option = {'learning_rate': 20.0,
                   'repeat_num': 100}
 
-        self.answer = denoising_algorithm(data = self.pre_pix(), reg_par=reg_par, option=option, blocks_num = 2)
-        #self.post_img = Image.fromarray(self.answer)
+        self.answer = denoising_algorithm(data = self.pre_pix(), reg_par=reg_par, option=option, blocks_num = 64)
 
     def pre_pix(self):
         return np.array(self.pre_img, np.float32)
@@ -182,22 +182,23 @@ class Pic():
 pic = Pic()
 
 plt.figure(2)
-pic.inputs('blurred_lena.png')
+pic.inputs('boat.png')
+pic.noise(20.0)
 
 plt.subplot(221)
 plt.imshow(pic.pre_pix(),cmap='gray',label='blurred image')
 
-pic.deblurred(reg_par=0.001)
-plt.subplot(222)
-plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=0.001')
-
 pic.deblurred(reg_par=10)
-plt.subplot(223)
+plt.subplot(222)
 plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=0.01')
 
 pic.deblurred(reg_par=50)
+plt.subplot(223)
+plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=0.1')
+
+pic.deblurred(reg_par=100)
 plt.subplot(224)
-plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=10')
+plt.imshow(pic.post_pix(),cmap='gray',label='reg=par=1')
 
 
 plt.show()
